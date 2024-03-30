@@ -21,7 +21,11 @@ class ConcurrentComponentRunner:
     This component allows you to run multiple components concurrently in a thread pool.
     """
 
-    def __init__(self, named_components: List[NamedComponent]):
+    def __init__(self, named_components: List[NamedComponent], executor: ThreadPoolExecutor = None):
+        """
+        :param named_components: List of NamedComponent instances
+        :param executor: ThreadPoolExecutor instance if not provided a new one will be created with default values
+        """
         if type(named_components) != list or any([type(named_component) != NamedComponent for named_component in named_components]):
             raise ValueError("named_components must be a list of NamedComponent instances")
         
@@ -46,18 +50,20 @@ class ConcurrentComponentRunner:
         component.set_output_types(self, **output_types)
 
         self.components = named_components
+        self.executor = executor
 
     def run(self, **inputs):
-        final_results = [] 
-
-        with ThreadPoolExecutor() as executor:
-            results = executor.map(lambda c: c[0].component.run(**inputs[c[1]]), zip(self.components, inputs.keys()))
-
-            for result in results:
-                final_results.append(result)
-
+        if self.executor is None:
+            with ThreadPoolExecutor() as executor:
+                final_results = self._run_in_executor(executor, inputs)
+        else:
+            final_results = self._run_in_executor(self.executor, inputs)
+            
         return {named_component.name: result for named_component, result in zip(self.components, final_results)}
 
+    def _run_in_executor(self, executor, inputs):
+        results = executor.map(lambda c: c[0].component.run(**inputs[c[1]]), zip(self.components, inputs.keys()))
+        return [result for result in results]
 
 @component
 class ConcurrentPipelineRunner:
@@ -65,7 +71,7 @@ class ConcurrentPipelineRunner:
     This component allows you to run multiple pipelines concurrently in a thread pool.
     """
 
-    def __init__(self, named_pipelines: List[NamedPipeline]):
+    def __init__(self, named_pipelines: List[NamedPipeline], executor: ThreadPoolExecutor = None):
         if type(named_pipelines) != list or any([type(named_pipeline) != NamedPipeline for named_pipeline in named_pipelines]):
             raise ValueError("named_components must be a list of NamedComponent instances")
         
@@ -80,14 +86,17 @@ class ConcurrentPipelineRunner:
         for named_pipeline in named_pipelines: 
             output_types[named_pipeline.name] = Dict[str, Any]
         self.pipelines = named_pipelines
+        self.executor = executor
 
     def run(self, **inputs):
-        final_results = [] 
-
-        with ThreadPoolExecutor() as executor:
-            results = executor.map(lambda c: c[0].pipeline.run(data=inputs[c[1]]), zip(self.pipelines, inputs.keys()))
-
-            for result in results:
-                final_results.append(result)
+        if self.executor is None:
+            with ThreadPoolExecutor() as executor:
+                final_results = self._run_in_executor(executor, inputs)
+        else:
+            final_results = self._run_in_executor(self.executor, inputs)
 
         return {named_pipeline.name: result for named_pipeline, result in zip(self.pipelines, final_results)}
+    
+    def _run_in_executor(self, executor: ThreadPoolExecutor, inputs: Dict[str, Any]):
+        results = executor.map(lambda c: c[0].pipeline.run(data=inputs[c[1]]), zip(self.pipelines, inputs.keys()))
+        return [result for result in results]

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import time
 from typing import Callable, Dict, List
 from haystack import Pipeline, component
@@ -27,6 +28,37 @@ class ComplexInputOutputComponent:
 
 
 class TestConcurrentComponentRunner:
+    def test_concurrent_component_runner_with_external_executor(self):
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            component_call_stack = []
+            def callback(component):
+                component_call_stack.append(component)
+
+            named_components = [
+                NamedComponent(name="component1", component=SimpleComponent(wait_time=0.05, callback=callback)),
+                NamedComponent(name="component2", component=SimpleComponent(wait_time=0.09, callback=callback)),
+                NamedComponent(name="component3", component=SimpleComponent(wait_time=0.01, callback=callback)),
+            ]
+
+            runner = ConcurrentComponentRunner(named_components, executor=executor)
+
+            pipe = Pipeline()
+            pipe.add_component("concurrent_runner", runner)
+
+            results = pipe.run(data={"concurrent_runner": {
+                                        "component1": {"increment": 1},
+                                        "component2": {"increment": 2, "number": 10}, 
+                                        "component3": {"increment": 3, "number": 20}
+                                        }
+                                    })
+            
+            assert results == {'concurrent_runner': {'component1': {'number': 6}, 'component2': {'number': 12}, 'component3': {'number': 23}}}
+            
+            assert len(component_call_stack) == 3
+            assert component_call_stack[0] == named_components[2].component
+            assert component_call_stack[1] == named_components[0].component
+            assert component_call_stack[2] == named_components[1].component
+
     def test_concurrent_component_runner(self):
         component_call_stack = []
         def callback(component):
@@ -116,6 +148,51 @@ class TestConcurrentComponentRunner:
 
 class TestConcurrentPipelineRunner:
 
+    def test_concurrent_pipeline_with_external_executor(self):
+        with ThreadPoolExecutor(max_workers=2) as executor: 
+            component_call_stack = []
+
+            def callback(component):
+                component_call_stack.append(component)
+
+            simple_component_1 = SimpleComponent(wait_time=0.09, callback=callback)
+            pipeline1 = Pipeline()
+            pipeline1.add_component("simple_component", simple_component_1)
+
+            simple_component_2 = SimpleComponent(wait_time=0.02, callback=callback)
+            pipeline2 = Pipeline()
+            pipeline2.add_component("simple_component", simple_component_2)
+
+            concurrent_pipeline_runner = ConcurrentPipelineRunner([NamedPipeline("pipeline1", pipeline1), 
+                                                                    NamedPipeline("pipeline2", pipeline2)], executor=executor)
+            
+            overall_pipeline = Pipeline()
+
+            overall_pipeline.add_component("concurrent_pipeline_runner", concurrent_pipeline_runner)
+
+            results = overall_pipeline.run(data={"concurrent_pipeline_runner": {
+                                                    "pipeline1": {
+                                                        "simple_component": {
+                                                            "increment": 1
+                                                        }
+                                                    },
+                                                    "pipeline2": {
+                                                        "simple_component": {
+                                                            "increment": 2,
+                                                            "number": 10
+                                                        }
+                                                    }
+                                                }
+                                            })
+
+            assert results == {'concurrent_pipeline_runner': {
+                                    'pipeline1': {'simple_component': {'number': 6}},
+                                    'pipeline2': {'simple_component': {'number': 12}}
+                                }}
+            assert len(component_call_stack) == 2
+            assert component_call_stack[0] == simple_component_2
+            assert component_call_stack[1] == simple_component_1         
+
     def test_concurrent_pipeline_runner(self):
         component_call_stack = []
 
@@ -161,7 +238,6 @@ class TestConcurrentPipelineRunner:
         assert component_call_stack[0] == simple_component_2
         assert component_call_stack[1] == simple_component_1
 
-        
     @pytest.mark.parametrize("input", [("pipeline", Pipeline(), {"pipeline": Pipeline()})])
     def test_concurrent_pipeline_runner_raises_error_on_wrong_input(self, input):
         pipeline = Pipeline()
