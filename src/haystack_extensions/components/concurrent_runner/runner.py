@@ -14,10 +14,17 @@ class NamedComponent(NamedTuple):
 @component
 class ConcurrentComponentRunner:
     """
-    A component that runs multiple components in parallel
+    This component allows you to run multiple components concurrently in a thread pool.
     """
 
     def __init__(self, named_components: List[NamedComponent]):
+        if type(named_components) != list or any([type(named_component) != NamedComponent for named_component in named_components]):
+            raise ValueError("named_components must be a list of NamedComponent instances")
+        
+        names = [named_component.name for named_component in named_components]
+        if len(names) != len(set(names)):
+            raise ValueError("All components must have unique names")
+
         for named_component in named_components: 
             socket_dict = named_component.component.__haystack_input__._sockets_dict
             for key, value in socket_dict.items():

@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "haystack_extensions"
 dynamic = ["version"]
-description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
+description = 'An set of useful extensions for the Haystack AI library.'
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "deepset GmbH", email = "info@deepset.ai" },
+  { name = "Alexander Gruhl", email = "gruhl.alexander@gmail.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
