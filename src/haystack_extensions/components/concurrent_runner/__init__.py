@@ -1,1 +1,1 @@
-from .runner import ConcurrentComponentRunner
+from .runner import ConcurrentComponentRunner, ConcurrentPipelineRunner
