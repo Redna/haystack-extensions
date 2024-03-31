@@ -10,7 +10,8 @@ from haystack_extensions.components.concurrent_runner.runner import (
     ConcurrentPipelineRunner,
 )
 from haystack.core.component import Component
-
+from haystack.components.retrievers import InMemoryEmbeddingRetriever
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 @component
 class SimpleComponent:
@@ -160,6 +161,15 @@ class TestConcurrentComponentRunner:
         results = pipeline.run(data={"concurrent_runner": {"component": {"increment": 1}}})
         assert results == {'concurrent_runner': {'component': {'number': 6}}}
 
+    def test_all_retriever_values_copied(self):
+        retriever = InMemoryEmbeddingRetriever(InMemoryDocumentStore())
+
+        concurrent_retriever = ConcurrentComponentRunner([NamedComponent("retriever", retriever)])
+
+        concurrent_retriever.__haystack_input__._sockets_dict
+
+        assert len(retriever.__haystack_input__._sockets_dict) == len(concurrent_retriever.__haystack_input__._sockets_dict["retriever"].type)
+    
 
 class TestConcurrentPipelineRunner:
     def test_concurrent_pipeline_with_external_executor(self):

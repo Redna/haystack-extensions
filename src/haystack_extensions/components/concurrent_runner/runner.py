@@ -35,10 +35,15 @@ class ConcurrentComponentRunner:
         if len(names) != len(set(names)):
             raise ValueError("All components must have unique names")
 
+        input_types: Dict = {}
         for named_component in named_components:
+            input_types[named_component.name] = {}
             socket_dict = named_component.component.__haystack_input__._sockets_dict
+            
             for key, value in socket_dict.items():
-                component.set_input_type(self, named_component.name, {key: value.type})
+                input_types[named_component.name][key] = value.type
+
+        component.set_input_types(self, **input_types)
 
         output_types: Dict = {}
         for named_component in named_components:
