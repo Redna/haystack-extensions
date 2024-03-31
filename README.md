@@ -14,6 +14,13 @@ $ hatch run test
 
 Hatch will take care of setting up an isolated Python environment and run the tests.
 
+## Installation
+
+Run: 
+```
+$ pip install haystack-extensions
+```
+
 
 ## Usage
 
