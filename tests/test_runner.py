@@ -9,7 +9,7 @@ from haystack_extensions.components.concurrent_runner.runner import (
     NamedPipeline,
     ConcurrentPipelineRunner,
 )
-from haystack.core.component import Component
+from haystack.components.others import Multiplexer
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
@@ -35,6 +35,14 @@ class ComplexInputOutputComponent:
             "as_list": [number + increment],
             "as_dict_of_lists": {key: [number + increment] for key in some_dict.keys()},
         }
+
+@component
+class SimplePrintAndReturnInputComponent:
+    
+    @component.output_types(value=Any)
+    def run(self, value: Any) -> Any:
+        print(value)
+        return {"value": value}
 
 
 class TestConcurrentComponentRunner:
@@ -99,9 +107,17 @@ class TestConcurrentComponentRunner:
         results = pipe.run(
             data={
                 "concurrent_runner": {
-                    "component1": {"increment": 1},
-                    "component2": {"increment": 2, "number": 10},
-                    "component3": {"increment": 3, "number": 20},
+                    "component1": {
+                        "increment": 1
+                    },
+                    "component2": {
+                        "increment": 2,
+                        "number": 10
+                    },
+                    "component3": {
+                        "increment": 3, 
+                        "number": 20
+                    }
                 }
             }
         )
@@ -118,6 +134,92 @@ class TestConcurrentComponentRunner:
         assert component_call_stack[0] == named_components[2].component
         assert component_call_stack[1] == named_components[0].component
         assert component_call_stack[2] == named_components[1].component
+
+    def test_concurrent_component_with_output_connections_runner(self):
+        component_call_stack = []
+
+        def callback(component):
+            component_call_stack.append(component)
+
+        named_components = [
+            NamedComponent(name="component1", component=SimpleComponent(wait_time=0.05, callback=callback)),
+            NamedComponent(name="component2", component=SimpleComponent(wait_time=0.09, callback=callback)),
+            NamedComponent(name="component3", component=SimpleComponent(wait_time=0.01, callback=callback)),
+        ]
+
+        runner = ConcurrentComponentRunner(named_components)
+
+        pipe = Pipeline()
+        pipe.add_component("concurrent_runner", runner)
+        pipe.add_component("print_input", SimplePrintAndReturnInputComponent())
+
+        pipe.connect("concurrent_runner.component1.number", "print_input")
+
+        results = pipe.run(
+            data={
+                "concurrent_runner": {
+                    "component1.increment": 1,
+                    "component2.increment": 2,
+                    "component2.number": 10,
+                    "component3.increment": 3,
+                    "component3.number": 20
+                }
+            }
+        )
+
+        assert results == {
+            'concurrent_runner': {
+                'component1.number': 12,
+                'component3.number': 23,
+            },
+            'print_input': {
+                'value': 12
+            }
+        }
+
+    def test_concurrent_component_with_input_connections_runner(self):
+        component_call_stack = []
+
+        def callback(component):
+            component_call_stack.append(component)
+
+        named_components = [
+            NamedComponent(name="component1", component=SimpleComponent(wait_time=0.05, callback=callback)),
+            NamedComponent(name="component2", component=SimpleComponent(wait_time=0.09, callback=callback)),
+            NamedComponent(name="component3", component=SimpleComponent(wait_time=0.01, callback=callback)),
+        ]
+
+        runner = ConcurrentComponentRunner(named_components)
+
+        pipe = Pipeline()
+        pipe.add_component("concurrent_runner", runner)
+        pipe.add_component("multiplexer", Multiplexer(int))
+
+        pipe.connect("multiplexer.value", "concurrent_runner.component1_number")
+
+        results = pipe.run(
+            data={
+                "concurrent_runner": {
+                    "component1_increment": 1,
+                    "component2_increment": 2,
+                    "component2_number": 10,
+                    "component3_increment": 3,
+                    "component3_number": 20,
+                },
+                "multiplexer": {
+                    "value": 12
+                }
+            }
+        )
+
+        assert results == {
+            'concurrent_runner': {
+                'component1_number': 13,
+                'component2_number': 12,
+                'component3_number': 23,
+            }
+        }
+
 
     def test_same_component_name_raises_error(self):
         component1 = NamedComponent("component", SimpleComponent(wait_time=0.1, callback=lambda x: None))
@@ -266,3 +368,7 @@ class TestConcurrentPipelineRunner:
         pipeline2 = NamedPipeline("pipeline", Pipeline())
         with pytest.raises(ValueError):
             ConcurrentPipelineRunner([pipeline1, pipeline2])
+
+
+if __name__ == "__main__": 
+    TestConcurrentComponentRunner().test_concurrent_component_with_input_connections_runner

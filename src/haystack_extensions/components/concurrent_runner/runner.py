@@ -3,7 +3,9 @@ from typing import Any, Dict, List, NamedTuple, Optional
 from haystack import Pipeline
 from haystack import component
 from haystack.core.component import Component
-
+from haystack.core.component.sockets import Sockets
+from haystack.core.component import InputSocket, OutputSocket
+from copy import deepcopy
 
 class NamedComponent(NamedTuple):
     name: str
@@ -34,30 +36,35 @@ class ConcurrentComponentRunner:
         names = [named_component.name for named_component in named_components]
         if len(names) != len(set(names)):
             raise ValueError("All components must have unique names")
+        
+        self._create_input_types(named_components)
+        self._create_output_types(named_components)
 
-        input_types: Dict = {}
-        for named_component in named_components:
-            input_types[named_component.name] = {}
-            socket_dict = named_component.component.__haystack_input__._sockets_dict
-            
-            for key, value in socket_dict.items():
-                input_types[named_component.name][key] = value.type
-
-        component.set_input_types(self, **input_types)
-
-        output_types: Dict = {}
-        for named_component in named_components:
-            output_types[named_component.name] = {}
-
-            socket_dict = named_component.component.__haystack_output__._sockets_dict
-
-            for key, value in socket_dict.items():
-                output_types[named_component.name][key] = value.type
-
-        component.set_output_types(self, **output_types)
-
-        self.components = named_components
         self.executor = executor
+        self.components = named_components
+
+
+    def _create_input_types(self, named_components: List[NamedComponent]):
+        if not hasattr(self, "__haystack_input__"):
+            self.__haystack_input__ = Sockets(self, {}, InputSocket)
+        
+        for named_component in named_components:
+            socket_dict = deepcopy(named_component.component.__haystack_input__._sockets_dict)
+
+            for name, value in socket_dict.items():
+                value.name = f"{named_component.name}_{name}"
+                self.__haystack_input__[f"{named_component.name}_{name}"] = value
+    
+    def _create_output_types(self, named_components: List[NamedComponent]):
+        if not hasattr(self, "__haystack_output__"):
+            self.__haystack_output__ = Sockets(self, {}, OutputSocket)
+        
+        for named_component in named_components:
+            socket_dict = deepcopy(named_component.component.__haystack_output__._sockets_dict)
+            
+            for name, value in socket_dict.items():
+                value.name = f"{named_component.name}_{name}"
+                self.__haystack_output__[f"{named_component.name}_{name}"] = value
 
     def run(self, **inputs):
         if self.executor is None:
@@ -66,10 +73,23 @@ class ConcurrentComponentRunner:
         else:
             final_results = self._run_in_executor(self.executor, inputs)
 
-        return {named_component.name: result for named_component, result in zip(self.components, final_results)}
+        outputs = {}
+        for named_component, result in zip(self.components, final_results):
+            for key, value in result.items():
+                outputs[f"{named_component.name}_{key}"] = value
+
+        return outputs
 
     def _run_in_executor(self, executor, inputs):
-        results = executor.map(lambda c: c[0].component.run(**inputs[c[1]]), zip(self.components, inputs.keys()))
+
+        def _get_real_input(component_name, inputs):
+            real_input = {}
+            for key, value in inputs.items():
+                if key.startswith(component_name):
+                    real_input[key.replace(f"{component_name}_", "")] = value
+            return real_input
+
+        results = executor.map(lambda c: c.component.run(**_get_real_input(c.name, inputs)), self.components)
         return [result for result in results]
 
 
