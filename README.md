@@ -59,10 +59,13 @@ if __name__ == "__main__":
     comp2 = SimplePrintStringWithWaitComponent(wait_time=3)
     comp3 = SimplePrintStringWithWaitComponent(wait_time=5)
 
-    p = Pipeline()
-    p.add_component("multithreaded_component", multithreaded_component)
+    named_components = [NamedComponent("one", comp1), NamedComponent("two", comp2), NamedComponent("three", comp3)]
+    concurrent_component_runner = ConcurrentComponentRunner(named_components)
 
-    result = p.run(data={ "multithreaded_component": {
+    p = Pipeline()
+    p.add_component("concurrent_component_runner", concurrent_component_runner)
+
+    result = p.run(data={ "concurrent_component_runner": {
                     "one_text": "Hello",
                     "two_text": "World",
                     "three_text": "!"
