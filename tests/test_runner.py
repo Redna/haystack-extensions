@@ -67,18 +67,20 @@ class TestConcurrentComponentRunner:
             results = pipe.run(
                 data={
                     "concurrent_runner": {
-                        "component1": {"increment": 1},
-                        "component2": {"increment": 2, "number": 10},
-                        "component3": {"increment": 3, "number": 20},
+                        "component1_increment": 1,
+                        "component2_increment": 2,
+                        "component2_number": 10,
+                        "component3_increment": 3,
+                        "component3_number": 20
                     }
                 }
             )
 
             assert results == {
-                'concurrent_runner': {
-                    'component1': {'number': 6},
-                    'component2': {'number': 12},
-                    'component3': {'number': 23},
+                "concurrent_runner": {
+                    "component1_number": 6,
+                    "component2_number": 12,
+                    "component3_number": 23
                 }
             }
 
@@ -94,39 +96,33 @@ class TestConcurrentComponentRunner:
             component_call_stack.append(component)
 
         named_components = [
-            NamedComponent(name="component1", component=SimpleComponent(wait_time=0.05, callback=callback)),
-            NamedComponent(name="component2", component=SimpleComponent(wait_time=0.09, callback=callback)),
-            NamedComponent(name="component3", component=SimpleComponent(wait_time=0.01, callback=callback)),
+            NamedComponent(name="c1", component=SimpleComponent(wait_time=0.05, callback=callback)),
+            NamedComponent(name="c2", component=SimpleComponent(wait_time=0.09, callback=callback)),
+            NamedComponent(name="c3", component=SimpleComponent(wait_time=0.01, callback=callback)),
         ]
 
         runner = ConcurrentComponentRunner(named_components)
 
         pipe = Pipeline()
-        pipe.add_component("concurrent_runner", runner)
+        pipe.add_component("concurrent_runner", instance=runner)
 
         results = pipe.run(
             data={
                 "concurrent_runner": {
-                    "component1": {
-                        "increment": 1
-                    },
-                    "component2": {
-                        "increment": 2,
-                        "number": 10
-                    },
-                    "component3": {
-                        "increment": 3, 
-                        "number": 20
-                    }
+                    "c1_increment": 1,
+                    "c2_increment": 2,
+                    "c2_number": 10,
+                    "c3_increment": 3,
+                    "c3_number": 20
                 }
             }
         )
 
         assert results == {
-            'concurrent_runner': {
-                'component1': {'number': 6},
-                'component2': {'number': 12},
-                'component3': {'number': 23},
+            "concurrent_runner": {
+                "c1_number": 6,
+                "c2_number": 12,
+                "c3_number": 23,
             }
         }
 
@@ -153,27 +149,27 @@ class TestConcurrentComponentRunner:
         pipe.add_component("concurrent_runner", runner)
         pipe.add_component("print_input", SimplePrintAndReturnInputComponent())
 
-        pipe.connect("concurrent_runner.component1.number", "print_input")
+        pipe.connect("concurrent_runner.component1_number", "print_input")
 
         results = pipe.run(
             data={
                 "concurrent_runner": {
-                    "component1.increment": 1,
-                    "component2.increment": 2,
-                    "component2.number": 10,
-                    "component3.increment": 3,
-                    "component3.number": 20
+                    "component1_increment": 1,
+                    "component2_increment": 2,
+                    "component2_number": 10,
+                    "component3_increment": 3,
+                    "component3_number": 20
                 }
             }
         )
 
         assert results == {
             'concurrent_runner': {
-                'component1.number': 12,
-                'component3.number': 23,
+                'component2_number': 12,
+                'component3_number': 23,
             },
             'print_input': {
-                'value': 12
+                'value': 6
             }
         }
 
@@ -234,11 +230,19 @@ class TestConcurrentComponentRunner:
         pipeline.add_component("concurrent_runner", runner)
 
         results = pipeline.run(
-            data={"concurrent_runner": {"component": {"some_dict": {"a": [1, 2, 3]}, "increment": 1}}}
+            data={"concurrent_runner": {
+                    "component_some_dict": {"a": [1, 2, 3]},
+                    "component_increment": 1
+                    }
+            }
         )
 
         assert results == {
-            'concurrent_runner': {'component': {'number': 6, 'as_list': [6], 'as_dict_of_lists': {'a': [6]}}}
+            "concurrent_runner": {
+                "component_number": 6,
+                "component_as_list": [6],
+                "component_as_dict_of_lists": {"a": [6]}
+            }
         }
 
     @pytest.mark.parametrize(
@@ -260,8 +264,10 @@ class TestConcurrentComponentRunner:
         pipeline = Pipeline()
         pipeline.add_component("concurrent_runner", runner)
 
-        results = pipeline.run(data={"concurrent_runner": {"component": {"increment": 1}}})
-        assert results == {'concurrent_runner': {'component': {'number': 6}}}
+        results = pipeline.run(data={"concurrent_runner": 
+                                         {"component_increment": 1}
+                                     })
+        assert results == {'concurrent_runner': {'component_number': 6}}
 
     def test_all_retriever_values_copied(self):
         retriever = InMemoryEmbeddingRetriever(InMemoryDocumentStore())
@@ -270,7 +276,7 @@ class TestConcurrentComponentRunner:
 
         concurrent_retriever.__haystack_input__._sockets_dict
 
-        assert len(retriever.__haystack_input__._sockets_dict) == len(concurrent_retriever.__haystack_input__._sockets_dict["retriever"].type)
+        assert len(retriever.__haystack_input__._sockets_dict) == len(concurrent_retriever.__haystack_input__._sockets_dict)
     
 
 class TestConcurrentPipelineRunner:

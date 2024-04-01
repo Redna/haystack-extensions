@@ -63,9 +63,9 @@ if __name__ == "__main__":
     p.add_component("multithreaded_component", multithreaded_component)
 
     result = p.run(data={ "multithreaded_component": {
-                    "one": {"text": "Hello"}, 
-                    "two": {"text": "World"}, 
-                    "three": {"text": "!"}
+                    "one_text": "Hello",
+                    "two_text": "World",
+                    "three_text": "!"
                 }
             })
 
@@ -83,7 +83,7 @@ Hello  <<== waited for 10 seconds
 
 **Result:**
 ```python
-result = {'multithreaded_component': {'one': {'text': 'Hello'}, 'two': {'text': 'World'}, 'three': {'text': '!'}}}
+result = {'multithreaded_component': {'one_text': 'Hello', 'two_text': 'World', 'three_text': '!'}}
 ```
 
 ### Subpipelines
