@@ -103,7 +103,7 @@ class ConcurrentPipelineRunner:
         if type(named_pipelines) != list or any(
             [type(named_pipeline) != NamedPipeline for named_pipeline in named_pipelines]
         ):
-            raise ValueError("named_components must be a list of NamedComponent instances")
+            raise ValueError("named_pipelines must be a list of NamedPipeline instances")
 
         names = [named_pipeline.name for named_pipeline in named_pipelines]
         if len(names) != len(set(names)):
